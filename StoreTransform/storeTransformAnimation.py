@@ -1,5 +1,6 @@
 from PySide2 import QtWidgets, QtCore
 import maya.cmds as cmds
+import pymel.core as pm
 import json
 import os
 
@@ -14,11 +15,11 @@ class TransformExporterTool(QtWidgets.QWidget):
         
         # Start Frame
         self.start_frame_label = QtWidgets.QLabel("Start Frame:")
-        self.start_frame_input = QtWidgets.QLineEdit(str(cmds.playbackOptions(q=True, minTime=True)))
+        self.start_frame_input = QtWidgets.QLineEdit(str(int(cmds.playbackOptions(q=True, minTime=True))))
         
         # End Frame
         self.end_frame_label = QtWidgets.QLabel("End Frame:")
-        self.end_frame_input = QtWidgets.QLineEdit(str(cmds.playbackOptions(q=True, maxTime=True)))
+        self.end_frame_input = QtWidgets.QLineEdit(str(int(cmds.playbackOptions(q=True, maxTime=True))))
         
         # JSON File Path
         self.json_path_label = QtWidgets.QLabel("JSON File Path:")
@@ -74,7 +75,6 @@ class TransformExporterTool(QtWidgets.QWidget):
     def export_transform_data(self):
         start_frame = int(float(self.start_frame_input.text()))
         end_frame = int(float(self.end_frame_input.text()))
-
         json_path = self.json_path_input.text()
         selected_objects = self.get_selected_objects()
         
@@ -86,22 +86,24 @@ class TransformExporterTool(QtWidgets.QWidget):
             cmds.warning("Please specify a JSON file path!")
             return
         
-        transform_data = []
+        transform_data = {}
         
         for frame in range(start_frame, end_frame + 1):
             cmds.currentTime(frame, edit=True)
+            transform_data[frame] = {}
             for obj in selected_objects:
                 if cmds.objExists(obj):
-                    translation = cmds.xform(obj, query=True, translation=True, worldSpace=False)
-                    rotation = cmds.xform(obj, query=True, rotation=True, worldSpace=False)
-                    scale = cmds.xform(obj, query=True, scale=True, relative=True)
-                    transform_data.append({
-                        "name": obj,
-                        "frame": frame,
-                        "translation": translation,
-                        "rotation": rotation,
-                        "scale": scale
-                    })
+                    translation = list(cmds.xform(obj, query=True, translation=True, worldSpace=False))
+                    rotation = list(cmds.xform(obj, query=True, rotation=True, worldSpace=False))
+                    scale = list(cmds.xform(obj, query=True, scale=True, relative=True))
+                    localMatrix=pm.PyNode(obj).getMatrix()
+                    translation = list(localMatrix.translate)
+                    rotation = localMatrix.rotate.asEulerRotation().asVector()
+                    rotation=[pm.datatypes.degrees(rotation.x),pm.datatypes.degrees(rotation.y),pm.datatypes.degrees(rotation.z)]
+                    # if obj not in transform_data:
+                    #     transform_data[frame] = {}
+                    
+                    transform_data[frame][obj] =translation+rotation
         
         # Save data to JSON
         with open(json_path, 'w') as json_file:
@@ -114,5 +116,6 @@ def run():
     global tool_window
     tool_window = TransformExporterTool()
     tool_window.show()
+
 
 run()
