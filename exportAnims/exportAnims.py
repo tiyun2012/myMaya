@@ -1,4 +1,5 @@
 #!/usr/bin/env mayapy
+
 """
 Usage: mayapy exportAnims.py <maya_file> <output_folder>
 

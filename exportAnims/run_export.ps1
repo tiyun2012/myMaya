@@ -1,3 +1,4 @@
+
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 # Define the path to mayapy.exe (update if necessary)
 $MAYA_PY = "C:\Program Files\Autodesk\Maya2024\bin\mayapy.exe"

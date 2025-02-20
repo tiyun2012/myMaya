@@ -1,4 +1,5 @@
 #!/usr/bin/env mayapy
+
 """
 Usage: mayapy getAnimInfo.py <maya_file> <output_folder>
 
