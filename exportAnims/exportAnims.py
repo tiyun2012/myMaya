@@ -1,117 +1,90 @@
 #!/usr/bin/env mayapy
 """
-Usage: mayapy export_single.py <maya_file> <output_folder>
+Usage: mayapy getAnimInfo.py <maya_file> <output_folder>
 
-Exports the specified Maya file to FBX.
+Prints the animation timeline info for the specified Maya file.
+For .mb files, the file is opened in Maya and playbackOptions are queried.
+For .ma files, the script reads the ASCII file and extracts timeline info 
+from a playbackOptions command.
+Errors during reading are logged under the output_folder.
 """
 
-import os
+import osplaybackOptions
 import sys
+import re
 
 if len(sys.argv) < 3:
-    sys.stderr.write("Usage: export_single.py <maya_file> <output_folder>\n")
+    sys.stderr.write("Usage: getAnimInfo.py <maya_file> <output_folder>\n")
     sys.exit(1)
 
 maya_file = sys.argv[1]
 output_folder = sys.argv[2]
 
-# --- Set environment variables and Qt attribute before any Qt UI is created ---
-os.environ['MAYA_DISABLE_CLICKTONE'] = '1'
-os.environ["QTWEBENGINE_DISABLE_SANDBOX"] = "1"
+def log_error(file_name, error_message):
+    log_file = os.path.join(output_folder, "getAnimInfo_error.log")
+    with open(log_file, 'a') as lf:
+        lf.write("File: {} -- {}\n".format(file_name, error_message))
 
-try:
-    from PySide2.QtCore import QCoreApplication, Qt
-    QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
-except Exception as e:
-    sys.stderr.write("Failed to set Qt attribute: {}\n".format(e))
+extension = os.path.splitext(maya_file)[1].lower()
 
-# --- Initialize Maya Standalone ---
-import maya.standalone
-maya.standalone.initialize(name='python')
+if extension == '.mb':
+    # Process .mb file using Maya Standalone
+    os.environ['MAYA_DISABLE_CLICKTONE'] = '1'
+    import maya.standalone
+    maya.standalone.initialize(name='python')
+    import maya.cmds as cmds
 
-import maya.cmds as cmds
-import maya.mel as mel
+    try:
+        cmds.file(maya_file, open=True, force=True)
+    except Exception as e:
+        error_msg = "Failed to open {}: {}".format(maya_file, e)
+        sys.stderr.write(error_msg + "\n")
+        log_error(maya_file, error_msg)
+        maya.standalone.uninitialize()
+        sys.exit(1)
 
-# --- Helper function to cleanly exit on failure ---
-def exit_with_error(msg):
-    sys.stderr.write(msg + "\n")
+    try:
+        start_time = cmds.playbackOptions(q=True, minTime=True)
+        end_time = cmds.playbackOptions(q=True, maxTime=True)
+    except Exception as e:
+        error_msg = "Error querying timeline options: {}".format(e)
+        sys.stderr.write(error_msg + "\n")
+        log_error(maya_file, error_msg)
+        maya.standalone.uninitialize()
+        sys.exit(1)
+
+    print(["startFrame=", start_time, "endFrame=", end_time, "frames=", end_time - start_time])
     maya.standalone.uninitialize()
-    sys.exit(1)
 
-# --- Optionally unload plugins that cause UI/OpenGL dependencies ---
-for plugin in ['mldeformer']:
-    if cmds.pluginInfo(plugin, query=True, loaded=True):
-        try:
-            cmds.unloadPlugin(plugin)
-            sys.stdout.write("Unloaded plugin: {}\n".format(plugin))
-        except Exception as e:
-            sys.stderr.write("Failed to unload plugin {}: {}\n".format(plugin, e))
-
-# --- Load the FBX plugin ---
-if not cmds.pluginInfo('fbxmaya', query=True, loaded=True):
+elif extension == '.ma':
+    # Process .ma file by reading it as text and using regex to extract timeline info
     try:
-        cmds.loadPlugin('fbxmaya')
+        with open(maya_file, 'r') as f:
+            content = f.read()
     except Exception as e:
-        exit_with_error("Error loading fbxmaya plugin: {}".format(e))
+        error_msg = "Error reading file {}: {}".format(maya_file, e)
+        sys.stderr.write(error_msg + "\n")
+        log_error(maya_file, error_msg)
+        sys.exit(1)
 
-# --- Set common FBX export options ---
-try:
-    mel.eval('FBXExportSmoothingGroups -v true')
-    mel.eval('FBXExportSmoothMesh -v true')
-    mel.eval('FBXExportTriangulate -v false')
-    mel.eval('FBXExportHardEdges -v false')
-    mel.eval('FBXExportConvertUnitString cm')
-    mel.eval('FBXExportUpAxis y')
-except Exception as e:
-    exit_with_error("Error setting FBX export options: {}".format(e))
-
-# --- Open the Maya file ---
-try:
-    cmds.file(maya_file, open=True, force=True)
-except Exception as e:
-    exit_with_error("Failed to open {}: {}".format(maya_file, e))
-
-# --- Get timeline range and set baking options ---
-try:
-    start_time = cmds.playbackOptions(q=True, minTime=True)
-    end_time = cmds.playbackOptions(q=True, maxTime=True)
-
-    mel.eval('FBXExportBakeComplexAnimation -v true')
-    mel.eval('FBXExportBakeComplexStart -v {}'.format(start_time))
-    mel.eval('FBXExportBakeComplexEnd -v {}'.format(end_time))
-except Exception as e:
-    exit_with_error("Error setting baking options for {}: {}".format(maya_file, e))
-
-# --- Select only transform and joint nodes (avoid cameras, lights, etc.) ---
-try:
-    cmds.select(cmds.ls(type=('transform', 'joint')), replace=True)
-except Exception as e:
-    exit_with_error("Error selecting objects for export: {}".format(e))
-
-# --- Define output FBX file path ---
-base_name = os.path.splitext(os.path.basename(maya_file))[0]
-fbx_file = os.path.normpath(os.path.join(output_folder, base_name + ".fbx"))
-
-# --- Attempt FBX export using MEL and native command as fallback ---
-export_success = False
-try:
-    mel.eval('FBXExport -f "{}" -s'.format(fbx_file))
-    export_success = True
-    sys.stdout.write("MEL FBX export succeeded for: {}\n".format(fbx_file))
-except Exception as e:
-    sys.stderr.write("MEL export command failed for {}: {}\n".format(fbx_file, e))
-    try:
-        cmds.file(fbx_file, force=True, exportAll=True, type="FBX export")
-        export_success = True
-        sys.stdout.write("Native FBX export succeeded for: {}\n".format(fbx_file))
-    except Exception as e:
-        sys.stderr.write("Native export command failed for {}: {}\n".format(fbx_file, e))
-        export_success = False
-
-# --- Verify export result ---
-if export_success and os.path.exists(fbx_file):
-    sys.stdout.write("FBX file successfully created: {}\n".format(fbx_file))
+    # Regex pattern to match the playbackOptions command.
+    # Expected pattern example:
+    #   playbackOptions -min 0 -max 120 -ast 0 -aet 120
+    pattern = re.compile(
+        r'playbackOptions\s+-min\s+([-+]?[0-9]*\.?[0-9]+)\s+-max\s+([-+]?[0-9]*\.?[0-9]+)\s+-ast\s+([-+]?[0-9]*\.?[0-9]+)\s+-aet\s+([-+]?[0-9]*\.?[0-9]+)'
+    )
+    match = pattern.search(content)
+    if match:
+        start_time = float(match.group(1))
+        end_time = float(match.group(2))
+        print(["startFrame=", start_time, "endFrame=", end_time, "frames=", end_time - start_time])
+    else:
+        error_msg = "No valid playbackOptions command found in {} file.".format(maya_file)
+        sys.stderr.write(error_msg + "\n")
+        log_error(maya_file, error_msg)
+        sys.exit(1)
 else:
-    sys.stderr.write("FBX file not found after export: {}\n".format(fbx_file))
-
-maya.standalone.uninitialize()
+    error_msg = "Unsupported file extension: {}".format(extension)
+    sys.stderr.write(error_msg + "\n")
+    log_error(maya_file, error_msg)
+    sys.exit(1)
