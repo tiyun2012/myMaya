@@ -1,8 +1,10 @@
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 # Define the path to mayapy.exe (update if necessary)
 $MAYA_PY = "C:\Program Files\Autodesk\Maya2024\bin\mayapy.exe"
 
-# Load required .NET assembly for Windows Forms
+# Load required .NET assemblies for Windows Forms and Drawing
 Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
 
 function Select-FolderDialog {
     $folderBrowser = New-Object System.Windows.Forms.FolderBrowserDialog
@@ -33,13 +35,26 @@ function Invoke-MayapyScript {
     catch { Write-Error "Error executing mayapy on file ${InputFile}: $($_.Exception.Message)" }
 }
 
+# Create main form
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Path Selector"
-$form.Size = New-Object System.Drawing.Size(400, 300)
+$form.Size = New-Object System.Drawing.Size(420, 300)
 $form.StartPosition = 'CenterScreen'
 
+# Create exportGroup (GroupBox) to hold sourceGroup, outGroup and Export button
+$exportGroup = New-Object System.Windows.Forms.GroupBox
+$exportGroup.Text = "Export Options"
+$exportGroup.Size = New-Object System.Drawing.Size(380, 170)
+$exportGroup.Location = New-Object System.Drawing.Point(10, 10)
+
+# Create sourceGroup inside exportGroup
+$sourceGroup = New-Object System.Windows.Forms.GroupBox
+$sourceGroup.Text = "Source Path"
+$sourceGroup.Size = New-Object System.Drawing.Size(360, 50)
+$sourceGroup.Location = New-Object System.Drawing.Point(10, 20)
+
 $labelSource = New-Object System.Windows.Forms.Label
-$labelSource.Text = 'Source Path:'
+$labelSource.Text = "Source Path:"
 $labelSource.Location = New-Object System.Drawing.Point(10, 20)
 $labelSource.AutoSize = $true
 $labelSource.ForeColor = 'Blue'
@@ -48,25 +63,33 @@ $labelSource.Add_Click({
     $path = Select-FolderDialog
     if ($path) { $textSource.Text = $path }
 })
-$form.Controls.Add($labelSource)
 
 $textSource = New-Object System.Windows.Forms.TextBox
-$textSource.Location = New-Object System.Drawing.Point(100, 20)
+$textSource.Location = New-Object System.Drawing.Point(100, 18)
 $textSource.Size = New-Object System.Drawing.Size(200, 20)
-$form.Controls.Add($textSource)
 
 $buttonBrowseSource = New-Object System.Windows.Forms.Button
-$buttonBrowseSource.Text = '...'
-$buttonBrowseSource.Location = New-Object System.Drawing.Point(310, 20)
+$buttonBrowseSource.Text = "..."
+$buttonBrowseSource.Location = New-Object System.Drawing.Point(310, 16)
+$buttonBrowseSource.Size = New-Object System.Drawing.Size(30, 23)
 $buttonBrowseSource.Add_Click({
     $path = Select-FolderDialog
     if ($path) { $textSource.Text = $path }
 })
-$form.Controls.Add($buttonBrowseSource)
+
+$sourceGroup.Controls.Add($labelSource)
+$sourceGroup.Controls.Add($textSource)
+$sourceGroup.Controls.Add($buttonBrowseSource)
+
+# Create outGroup inside exportGroup
+$outGroup = New-Object System.Windows.Forms.GroupBox
+$outGroup.Text = "Output Path"
+$outGroup.Size = New-Object System.Drawing.Size(360, 50)
+$outGroup.Location = New-Object System.Drawing.Point(10, 80)
 
 $labelOutput = New-Object System.Windows.Forms.Label
-$labelOutput.Text = 'Output Path:'
-$labelOutput.Location = New-Object System.Drawing.Point(10, 60)
+$labelOutput.Text = "Output Path:"
+$labelOutput.Location = New-Object System.Drawing.Point(10, 20)
 $labelOutput.AutoSize = $true
 $labelOutput.ForeColor = 'Blue'
 $labelOutput.Cursor = [System.Windows.Forms.Cursors]::Hand
@@ -74,31 +97,35 @@ $labelOutput.Add_Click({
     $path = Select-FolderDialog
     if ($path) { $textOutput.Text = $path }
 })
-$form.Controls.Add($labelOutput)
 
 $textOutput = New-Object System.Windows.Forms.TextBox
-$textOutput.Location = New-Object System.Drawing.Point(100, 60)
+$textOutput.Location = New-Object System.Drawing.Point(100, 18)
 $textOutput.Size = New-Object System.Drawing.Size(200, 20)
-$form.Controls.Add($textOutput)
 
 $buttonBrowseOutput = New-Object System.Windows.Forms.Button
-$buttonBrowseOutput.Text = '...'
-$buttonBrowseOutput.Location = New-Object System.Drawing.Point(310, 60)
+$buttonBrowseOutput.Text = "..."
+$buttonBrowseOutput.Location = New-Object System.Drawing.Point(310, 16)
+$buttonBrowseOutput.Size = New-Object System.Drawing.Size(30, 23)
 $buttonBrowseOutput.Add_Click({
     $path = Select-FolderDialog
     if ($path) { $textOutput.Text = $path }
 })
-$form.Controls.Add($buttonBrowseOutput)
 
+$outGroup.Controls.Add($labelOutput)
+$outGroup.Controls.Add($textOutput)
+$outGroup.Controls.Add($buttonBrowseOutput)
+
+# Create Export button inside exportGroup
 $buttonExport = New-Object System.Windows.Forms.Button
-$buttonExport.Text = 'Export'
-$buttonExport.Location = New-Object System.Drawing.Point(10, 100)
+$buttonExport.Text = "Export"
+$buttonExport.Location = New-Object System.Drawing.Point(140, 135)
+$buttonExport.Size = New-Object System.Drawing.Size(100, 25)
 $buttonExport.Add_Click({
     $sourcePath = $textSource.Text
     $outputPath = $textOutput.Text
 
     if (-not (Test-Path -Path $sourcePath)) {
-        [System.Windows.Forms.MessageBox]::Show("Source path does not exist!", 'Error')
+        [System.Windows.Forms.MessageBox]::Show("Source path does not exist!", "Error")
         return
     }
 
@@ -113,19 +140,41 @@ $buttonExport.Add_Click({
         Write-Host "Exporting completed for ${file} <-------" -ForegroundColor Green
     }
 
-    [System.Windows.Forms.MessageBox]::Show("Exporting completed!", 'Export')
+    [System.Windows.Forms.MessageBox]::Show("Exporting completed!", "Export")
 })
-$form.Controls.Add($buttonExport)
+
+$exportGroup.Controls.Add($sourceGroup)
+$exportGroup.Controls.Add($outGroup)
+$exportGroup.Controls.Add($buttonExport)
+
+# Create frameinfoGroup to hold Frames Info controls
+$frameinfoGroup = New-Object System.Windows.Forms.GroupBox
+$frameinfoGroup.Text = "Frame Info Options"
+$frameinfoGroup.Size = New-Object System.Drawing.Size(380, 70)
+$frameinfoGroup.Location = New-Object System.Drawing.Point(10, 180)
+
+$labelCsvName = New-Object System.Windows.Forms.Label
+$labelCsvName.Text = "CSV Name:"
+$labelCsvName.Location = New-Object System.Drawing.Point(10, 30)
+$labelCsvName.AutoSize = $true
+
+$csvNameTextBox = New-Object System.Windows.Forms.TextBox
+$csvNameTextBox.Location = New-Object System.Drawing.Point(80, 28)
+$csvNameTextBox.Size = New-Object System.Drawing.Size(200, 20)
+# Set a default CSV name
+$csvNameTextBox.Text = "animInfo.csv"
 
 $buttonGetFramesInfo = New-Object System.Windows.Forms.Button
-$buttonGetFramesInfo.Text = 'Get Frames Range'
-$buttonGetFramesInfo.Location = New-Object System.Drawing.Point(120, 100)
+$buttonGetFramesInfo.Text = "Get Frames"
+$buttonGetFramesInfo.Location = New-Object System.Drawing.Point(290, 26)
+$buttonGetFramesInfo.Size = New-Object System.Drawing.Size(80, 25)
 $buttonGetFramesInfo.Add_Click({
     $sourcePath = $textSource.Text
     $outputPath = $textOutput.Text
+    $csvName = $csvNameTextBox.Text
 
     if (-not (Test-Path -Path $sourcePath)) {
-        [System.Windows.Forms.MessageBox]::Show("Source path does not exist!", 'Error')
+        [System.Windows.Forms.MessageBox]::Show("Source path does not exist!", "Error")
         return
     }
 
@@ -159,13 +208,19 @@ $buttonGetFramesInfo.Add_Click({
     }
 
     if ($data.Count -gt 0) {
-        $csvPath = Join-Path -Path $outputPath -ChildPath "animInfo.csv"
+        $csvPath = Join-Path -Path $outputPath -ChildPath $csvName
         $data | Export-Csv -Path $csvPath -NoTypeInformation
         $data | Out-GridView -Title "Frames Info"
     } else {
         Write-Host "No data collected. Please check the processing steps." -ForegroundColor Red
     }
 })
-$form.Controls.Add($buttonGetFramesInfo)
+
+$frameinfoGroup.Controls.Add($labelCsvName)
+$frameinfoGroup.Controls.Add($csvNameTextBox)
+$frameinfoGroup.Controls.Add($buttonGetFramesInfo)
+
+$form.Controls.Add($exportGroup)
+$form.Controls.Add($frameinfoGroup)
 
 $form.ShowDialog() | Out-Null
