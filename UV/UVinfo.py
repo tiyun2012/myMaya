@@ -1107,28 +1107,28 @@ def show_ui():
 
 # show_ui()
 
-__id__ = "#7040"
-__nice__ = "UV Info"
-__desc__ = "UV Info"
+# __id__ = "#7040"
+# __nice__ = "UV Info"
+# __desc__ = "UV Info"
 
-@decorator.nodefunction
-@decorator.log_decorator
-def run(*args):
+# @decorator.nodefunction
+# @decorator.log_decorator
+# def run(*args):
     
-    # Get all file nodes in the scene
-    identical_offset=IDENTICAL_PIXEL / TEXTURE_SIZE
-    build_uv_mesh_data(TEXTURE_SIZE=TEXTURE_SIZE, MIN_SHELL_DISTANCE_TEXTURE_DIS=MIN_SHELL_DISTANCE_TEXTURE_DIS,
-                           BORDER_MIN=BORDER_MIN, identical_offset=identical_offset)
+#     # Get all file nodes in the scene
+#     identical_offset=IDENTICAL_PIXEL / TEXTURE_SIZE
+#     build_uv_mesh_data(TEXTURE_SIZE=TEXTURE_SIZE, MIN_SHELL_DISTANCE_TEXTURE_DIS=MIN_SHELL_DISTANCE_TEXTURE_DIS,
+#                            BORDER_MIN=BORDER_MIN, identical_offset=identical_offset)
  
-    err,listErrorinfo=summarize_UVMeshData_counts()
-    result = err == 0
-    global UVMeshData
-    err_list=listErrorinfo
-    return result, err_list, ''
-def fix(flag, err):
-    """
-    Show the result of the QC check.
-    """
-    show_ui()
+#     err,listErrorinfo=summarize_UVMeshData_counts()
+#     result = err == 0
+#     global UVMeshData
+#     err_list=listErrorinfo
+#     return result, err_list, ''
+# def fix(flag, err):
+#     """
+#     Show the result of the QC check.
+#     """
+#     show_ui()
 
 
